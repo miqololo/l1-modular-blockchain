@@ -1,7 +1,21 @@
 // Direct HTTP client for the aios chain. Used for tx submission and account
 // queries (nonce, balance). Read-heavy data (services list, request status)
 // goes through the indexer for cleaner separation.
-const CHAIN_URL = process.env.NEXT_PUBLIC_CHAIN_URL || "http://localhost:26657";
+//
+// URL resolution mirrors lib/indexer.ts:
+//   - Server-side: CHAIN_URL (container DNS)
+//   - Client-side: NEXT_PUBLIC_CHAIN_URL (public reachable URL)
+function resolveChainURL(): string {
+  if (typeof window === "undefined") {
+    return (
+      process.env.CHAIN_URL ||
+      process.env.NEXT_PUBLIC_CHAIN_URL ||
+      "http://chain:26657"
+    );
+  }
+  return process.env.NEXT_PUBLIC_CHAIN_URL || "http://localhost:26657";
+}
+const CHAIN_URL = resolveChainURL();
 
 export interface ChainStatus {
   chain_id: string;

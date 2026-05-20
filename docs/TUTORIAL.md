@@ -214,7 +214,7 @@ If you want to verify the claim under different parameters (e.g. `VoucherMargin=
 
 ## 7. Threat coverage
 
-The threat model lives in `.claude/internal/protocol/threat-model.md`. Each enumerated attack has either a shipped mitigation or an explicit "this is the residual risk" disclosure. As of this checkout:
+The threat model is summarised below. Each enumerated attack has either a shipped mitigation or an explicit "this is the residual risk" disclosure. As of this checkout:
 
 | Attack ID | Description | Status |
 |---|---|---|
@@ -236,7 +236,7 @@ Three attacks remain only partially mitigated: A3.1 (collusion), A4.1 (single-pr
 
 ## 8. Open problems
 
-The complete list lives in `.claude/internal/protocol/verification-protocol.md` §7. The most consequential remaining items, in order of severity:
+The most consequential remaining items, in order of severity:
 
 1. **Cross-host determinism not yet validated.** The current proof is cross-process on one machine. CPU microcode, libc, kernel scheduler may all differ between hosts. The Phase 1 gate explicitly requires two-host validation before any domain is treated as production-grade.
 2. **Federated re-execution committee not implemented.** ADR-0004 commits to the design (chosen over Nitro-style bisection, which doesn't fit AI inference). The runtime is Phase 4 work. Until then, all disputes resolve via vouchers; if vouchers tie or are missing, the authority can resolve manually.

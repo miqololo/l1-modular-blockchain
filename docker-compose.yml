@@ -248,8 +248,17 @@ services:
   # ─── frontend ────────────────────────────────────────────────────────────
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      # Build context is the project root so the image can include both the
+      # frontend source AND the docs/ markdown files (served at /docs by the
+      # Next.js app). The dockerfile lives in frontend/ for clarity.
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Baked into the browser bundle at build time. Must be set to the
+        # externally-reachable URLs of the chain + indexer for any browser
+        # NOT running on the docker host.
+        NEXT_PUBLIC_INDEXER_URL: "${NEXT_PUBLIC_INDEXER_URL:-http://localhost:8081}"
+        NEXT_PUBLIC_CHAIN_URL: "${NEXT_PUBLIC_CHAIN_URL:-http://localhost:26657}"
     image: aios/frontend:dev
     container_name: aios-frontend
     restart: unless-stopped
@@ -257,9 +266,15 @@ services:
       indexer:
         condition: service_healthy
     environment:
-      # Default to localhost so the make-demo flow works without env tweaks.
-      # Override via .env or a compose override file when deploying to a host
-      # where browsers will reach the chain/indexer over a non-localhost address.
+      # Server-side (SSR + route handlers): the Next.js server inside the
+      # frontend container talks to the chain/indexer via docker network DNS.
+      # This is faster + doesn't depend on the public URL being reachable from
+      # inside the container.
+      INDEXER_URL: "http://indexer:8081"
+      CHAIN_URL: "http://chain:26657"
+      # Client-side (browser bundle): also exposed at runtime as a sanity
+      # mirror of what was baked at build time. The browser only ever sees
+      # the build-time value (see lib/indexer.ts resolveIndexerURL).
       NEXT_PUBLIC_INDEXER_URL: "${NEXT_PUBLIC_INDEXER_URL:-http://localhost:8081}"
       NEXT_PUBLIC_CHAIN_URL: "${NEXT_PUBLIC_CHAIN_URL:-http://localhost:26657}"
       EXPOSE_DEV_KEYRING: "1"

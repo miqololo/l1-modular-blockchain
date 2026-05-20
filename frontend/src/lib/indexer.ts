@@ -1,9 +1,28 @@
 // Typed fetch wrappers around the indexer's REST API.
 //
 // Schema mirrors indexer/internal/store. Zod parsing flags drift loudly.
+//
+// URL resolution is context-aware:
+//   - Server-side (Next.js server components / route handlers):
+//     prefer INDEXER_URL (container DNS, e.g. http://indexer:8081). This is
+//     the path inside the docker network.
+//   - Client-side (browser bundle):
+//     use NEXT_PUBLIC_INDEXER_URL (public reachable URL, e.g.
+//     http://178.105.144.11:8081). NEXT_PUBLIC_* is baked in at build time;
+//     the Dockerfile takes it as a build arg.
 import { z } from "zod";
 
-const INDEXER_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:8081";
+function resolveIndexerURL(): string {
+  if (typeof window === "undefined") {
+    return (
+      process.env.INDEXER_URL ||
+      process.env.NEXT_PUBLIC_INDEXER_URL ||
+      "http://indexer:8081"
+    );
+  }
+  return process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:8081";
+}
+const INDEXER_URL = resolveIndexerURL();
 
 export const Service = z.object({
   id: z.number(),

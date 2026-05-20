@@ -14,6 +14,46 @@ together as a marketplace.
 
 ---
 
+## 🎬 Live demo
+
+A public devnet is currently running at **178.105.144.11**. Open these in your browser to interact with the protocol — no clone or setup required:
+
+| What | URL | What you can do |
+|---|---|---|
+| **Marketplace UI** | http://178.105.144.11:3030 | Browse services, submit a request, watch the full lifecycle resolve. Built-in dev wallet (alice/bob) for one-click signing. |
+| **Live event feed** | http://178.105.144.11:3030 (scroll down) | SSE-backed live tail of every protocol event: `InferenceRequested`, `ResultSubmitted`, `Vouched`, `RequestFinalized`, etc. |
+| **Chain API** | http://178.105.144.11:26657/status | Raw chain HTTP API. Try `/services`, `/requests`, `/params`, `/events` (SSE). |
+| **Indexer API** | http://178.105.144.11:8081/stats/summary | Denormalized read views: services, requests, statistics. |
+| **Harness verdicts** | http://178.105.144.11:8090/report | What the determinism-harness independently verified, with `OK`/`DIVERGENT` per request. |
+
+### 60-second tour
+
+1. Open http://178.105.144.11:3030.
+2. Click the `translate-en-fr` service.
+3. Pick a sample prompt (or write your own), click **Use dev: alice**, then **Sign and submit →**.
+4. Watch the request page show `PENDING → SUBMITTED → FINALIZED` over ~50 seconds. Provider's output appears, attestation is verifiable.
+5. Scroll the homepage's **Live chain activity** — your request's events ticked through there in real time.
+
+### Want to break it? (falsifiability demos from the host)
+
+The protocol's threat model is *falsifiable*: the failure modes are documented and reproducible. From a shell on the host:
+
+```bash
+ssh root@178.105.144.11 'cd /root/aios && \
+  MALICIOUS_PROVIDER=1 docker compose -f docker-compose.yml -f docker-compose.remote.yml up -d --force-recreate inference-node'
+# Submit a request → watch it transition CHALLENGED → SLASHED (provider's bond goes to the harness).
+```
+
+Restore honest mode:
+```bash
+ssh root@178.105.144.11 'cd /root/aios && \
+  MALICIOUS_PROVIDER= docker compose -f docker-compose.yml -f docker-compose.remote.yml up -d --force-recreate inference-node'
+```
+
+See [`docs/TUTORIAL.md`](docs/TUTORIAL.md) for the full reviewer-facing walkthrough and [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for the independent verification checklist.
+
+---
+
 ## Run it
 
 ```bash
@@ -121,13 +161,7 @@ docker/                One-shot init scripts (model download).
 scripts/               Cross-package helpers (wait-healthy).
 docs/                  Public integration documentation.
 
-.claude/               Claude Code configuration + internal dev docs.
-                       Agents, skills, slash commands, project rules, ADRs,
-                       phase tracker, protocol research, prior-art notes.
 ```
-
-The `.claude/` folder is for Claude Code (the CLI/IDE assistant) and internal
-development tracking. Integrators don't need to read anything in it.
 
 ## Common commands
 
@@ -169,18 +203,6 @@ make harness-report           # see verdicts
 - CosmWasm extensions, Celestia DA — Phase 5
 
 See [docs/phases-and-roadmap.md](docs/phases-and-roadmap.md) for what changes when.
-
-## Working with Claude in this repo
-
-`.claude/` is set up for [Claude Code](https://claude.com/claude-code):
-
-- 11 specialized subagents (cosmos, frontend, indexer, devops, ml-determinism,
-  protocol-architect, tdd-enforcer, analytics, agents, tutorial-writer,
-  cosmwasm) — each self-gates by phase.
-- 6 skills (TDD cycle, dockerize-service, scaffold-cosmos-module, etc.).
-- Slash commands: `/demo`, `/devnet`, `/spec`, `/test-all`, `/phase`, `/review-tdd`.
-
-If you're not using Claude Code, ignore `.claude/` — it doesn't affect the project at all.
 
 ## License
 

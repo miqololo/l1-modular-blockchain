@@ -9,7 +9,7 @@ Thumbs.db
 *.swo
 *~
 
-# Secrets — defense in depth (also denied via .claude/settings.json)
+# Secrets — defense in depth.
 .env
 .env.*
 !.env.example
@@ -19,8 +19,9 @@ id_rsa*
 credentials*
 *.secret
 
-# Claude — keep config tracked, ignore local-only overrides
-.claude/settings.local.json
+# Local-only dev workspace (development tooling config, internal notes,
+# scratch agents). Never pushed to remote git.
+.claude/
 
 # Go
 chain/bin/

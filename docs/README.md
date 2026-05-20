@@ -2,7 +2,7 @@
 
 Documentation for developers integrating with the **Decentralized AI Operating System**: a modular L1 marketplace where anyone can register AI services, anyone can request inference, and inference workers earn fees by serving real work.
 
-This folder is the **integration manual**. It tells you how to use the system from the outside — how to register a service, run an inference node, build a client, sign transactions, and read the chain. Internal design docs (ADRs, phase tracker, protocol research) live in `.claude/internal/` and are not required reading to integrate.
+This folder is the **integration manual**. It tells you how to use the system from the outside — how to register a service, run an inference node, build a client, sign transactions, and read the chain.
 
 ---
 
@@ -105,7 +105,7 @@ Phase 3.x adds **bond economics** on top of Phase 3's challenge mechanism. Provi
 
 **What works today**: provider bonds locked at submit and released on `FINALIZED`. Challenger bonds locked at `MsgChallenge` and returned on `SLASHED`. A successful slash transfers the provider's bond to the challenger. End-to-end balance accounting verified across all four actors (requester, provider, challenger, module escrow).
 
-**What's still in Phase 3.y** (open): a real dispute resolution mechanism. Today's chain still auto-slashes after the resolution window because it has no way to **dismiss** a challenge — meaning a malicious *challenger* could grief honest providers. The voucher mechanism in [ADR-0004](.claude/internal/adr/0004-dispute-game-shape.md) closes this. Until then, only trust the bundled harness as challenger.
+**What's still in Phase 3.y** (open): a real dispute resolution mechanism. Today's chain still auto-slashes after the resolution window because it has no way to **dismiss** a challenge — meaning a malicious *challenger* could grief honest providers. The voucher mechanism (committed in the protocol's dispute-game design) closes this. Until then, only trust the bundled harness as challenger.
 
 If you build a service today on a verified domain: cheating costs you your bond. Honest providers wait ~45 s for finalization and walk away with escrow + bond returned.
 
@@ -115,4 +115,4 @@ See [Phases & Roadmap](phases-and-roadmap.md) for what changes when.
 
 ## Questions or issues?
 
-Read [Glossary](glossary.md) for terminology. For internal design rationale (the deeper "why" behind decisions like "optimistic vs zk verification"), see `.claude/internal/` — but you don't need it to integrate.
+Read [Glossary](glossary.md) for terminology.

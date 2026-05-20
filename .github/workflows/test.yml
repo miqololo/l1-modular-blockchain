@@ -28,9 +28,20 @@ jobs:
           cache: true
           cache-dependency-path: ${{ matrix.pkg }}/go.sum
 
+      - name: verify go.sum is in sync (no `go mod tidy` drift)
+        working-directory: ${{ matrix.pkg }}
+        # If a commit forgets to run `go mod tidy`, this step fails loudly
+        # before the test step does — and the message points at the drift,
+        # not at a confusing "missing go.sum entry" build error.
+        run: |
+          cp go.sum go.sum.before
+          go mod tidy
+          diff -u go.sum.before go.sum || { echo "✗ go.sum is stale; run 'go mod tidy' and commit the result" >&2; exit 1; }
+
       - name: go test
         working-directory: ${{ matrix.pkg }}
-        # -race enabled for everything (no CGO in any package as of Phase 3.z).
+        # -race enabled for everything. -race requires CGO, which the bookworm
+        # base image provides (the alpine base disables CGO).
         # -count=1 disables the test cache to ensure we exercise the code on
         # every CI run, not just on the first one with a given hash.
         # 10m timeout is generous — current full suite runs in <60s locally.
