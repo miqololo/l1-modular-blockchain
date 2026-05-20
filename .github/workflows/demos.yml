@@ -1,0 +1,242 @@
+name: demos
+
+# End-to-end protocol validation. Every push/PR exercises the full
+# docker-compose stack and asserts the documented outcome of each demo:
+#
+#   demo-honest             → request finalizes
+#   demo-malicious          → request is SLASHED, escrow refunded
+#   demo-spurious           → spurious challenge is DISMISSED (request FINALIZED)
+#   demo-no-watcher         → falsifiability: malicious request FINALIZES (wrong hash)
+#   demo-tokenizer-mismatch → falsifiability: chain rejects → REFUNDED on deadline
+#   determinism-check       → 6/6 identical hashes across two llama-server processes
+#
+# The matrix runs each demo in its own job so failures are scoped and the
+# run dashboard is readable. Each job starts from a clean docker-compose
+# state (`down -v` first) so the demos can assert request_id=1 deterministically.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A single concurrency group cancels in-flight runs for the same ref. Saves
+# CI minutes when a developer pushes multiple commits quickly.
+concurrency:
+  group: demos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  demo:
+    name: ${{ matrix.demo.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        demo:
+          - name: honest
+            make_target: demo
+            request_id: 1
+            expected_status: FINALIZED
+            timeout: 120
+          - name: malicious
+            make_target: demo-malicious
+            request_id: 1
+            expected_status: SLASHED
+            timeout: 120
+          - name: spurious
+            make_target: demo-spurious
+            request_id: 1
+            expected_status: FINALIZED
+            timeout: 120
+          - name: no-watcher-falsifiability
+            make_target: demo-no-watcher
+            request_id: 1
+            expected_status: FINALIZED  # wrong hash, but it FINALIZES — that's the doc'd failure
+            timeout: 120
+          - name: tokenizer-mismatch-falsifiability
+            make_target: demo-tokenizer-mismatch
+            request_id: 1
+            expected_status: REFUNDED
+            timeout: 180  # deadline-based; needs the request to time out
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache TinyLlama model
+        # ~700MB download; cache it across runs to keep the demos fast.
+        uses: actions/cache@v4
+        with:
+          path: /tmp/aios-model-cache
+          key: tinyllama-1.1b-q4-${{ hashFiles('.env.example') }}
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Build local images
+        # Build all images up-front so the `make` targets don't trigger
+        # ad-hoc builds and time out their own polling loops.
+        run: docker compose build --pull
+
+      - name: Run ${{ matrix.demo.make_target }}
+        # Sub-shell: every demo's `make` target only sets up state and
+        # initiates the flow. The assertion is done by the next step.
+        run: |
+          set -euo pipefail
+          make ${{ matrix.demo.make_target }}
+
+      - name: Assert request ${{ matrix.demo.request_id }} reaches ${{ matrix.demo.expected_status }}
+        run: |
+          ./scripts/ci-assert-status.sh \
+            ${{ matrix.demo.request_id }} \
+            ${{ matrix.demo.expected_status }} \
+            ${{ matrix.demo.timeout }}
+
+      - name: Dump harness verdicts on failure
+        if: failure()
+        run: |
+          echo "--- determinism-harness /report ---"
+          curl -sS http://localhost:8090/report | python3 -m json.tool || true
+          echo ""
+          echo "--- determinism-harness-b /report ---"
+          curl -sS http://localhost:8091/report 2>/dev/null | python3 -m json.tool || true
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --tail=200 chain
+          docker compose logs --tail=200 inference-node
+          docker compose logs --tail=200 determinism-harness || true
+          docker compose logs --tail=200 determinism-harness-b || true
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  determinism-check:
+    name: cross-process determinism (6/6 identical hashes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Cache TinyLlama model
+        uses: actions/cache@v4
+        with:
+          path: /tmp/aios-model-cache
+          key: tinyllama-1.1b-q4-${{ hashFiles('.env.example') }}
+
+      - name: Boot llama-server + llama-server-b
+        run: |
+          docker compose up -d llama-server llama-server-b
+
+      - name: Wait for both llama-servers to be healthy
+        run: |
+          for port in 8080 8082; do
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -fsS http://localhost:$port/health >/dev/null 2>&1; then break; fi
+              echo "  waiting for llama-server on $port ($i/10)"
+              sleep 6
+            done
+          done
+
+      - name: Run determinism check
+        run: |
+          set -euo pipefail
+          OUTPUT="$(make determinism-check)"
+          echo "$OUTPUT"
+
+          # Extract the 6 hashes and verify they're all equal. The make target
+          # prints one line per hash like "  run 1 hash: a80f29da55264c0a".
+          HASHES="$(echo "$OUTPUT" | grep -oE 'hash: [a-f0-9]{16}' | awk '{print $2}')"
+          COUNT=$(echo "$HASHES" | wc -l)
+          UNIQUE=$(echo "$HASHES" | sort -u | wc -l)
+
+          echo ""
+          echo "Total hashes: $COUNT (expect 6)"
+          echo "Unique hashes: $UNIQUE (expect 1)"
+
+          if [ "$COUNT" -ne 6 ] || [ "$UNIQUE" -ne 1 ]; then
+            echo "✗ determinism check failed" >&2
+            exit 1
+          fi
+          echo "✓ all 6 hashes identical"
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  multi-watcher:
+    name: two independent watchers agree
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Cache TinyLlama model
+        uses: actions/cache@v4
+        with:
+          path: /tmp/aios-model-cache
+          key: tinyllama-1.1b-q4-${{ hashFiles('.env.example') }}
+
+      - name: Build images
+        run: docker compose build --pull
+
+      - name: Run multi-watcher demo
+        run: |
+          set -euo pipefail
+          docker compose up -d
+          ./scripts/wait-healthy.sh
+          curl -fsS -X POST http://localhost:26657/demo/seed >/dev/null
+
+          # Submit a request and wait long enough for both harnesses to verify.
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            -d '{"service_id":1,"prompt":"multi-watcher CI"}' \
+            http://localhost:26657/demo/request-inference
+
+          # Wait for finalization.
+          ./scripts/ci-assert-status.sh 1 FINALIZED 120
+
+          # Both harnesses should have an OK verdict for request_id=1.
+          A=$(curl -sS http://localhost:8090/report | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+ok = any(it.get('verdict')=='OK' and it.get('request_id')==1 for it in d.get('items') or [])
+print('yes' if ok else 'no')")
+          B=$(curl -sS http://localhost:8091/report | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+ok = any(it.get('verdict')=='OK' and it.get('request_id')==1 for it in d.get('items') or [])
+print('yes' if ok else 'no')")
+
+          echo "harness A says OK on request 1: $A"
+          echo "harness B says OK on request 1: $B"
+          if [ "$A" != "yes" ] || [ "$B" != "yes" ]; then
+            echo "✗ multi-watcher consensus failed" >&2
+            exit 1
+          fi
+          echo "✓ both independent watchers verified the same request"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --tail=200 determinism-harness || true
+          docker compose logs --tail=200 determinism-harness-b || true
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

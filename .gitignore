@@ -1,0 +1,71 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets — defense in depth (also denied via .claude/settings.json)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+credentials*
+*.secret
+
+# Claude — keep config tracked, ignore local-only overrides
+.claude/settings.local.json
+
+# Go
+chain/bin/
+inference-node/bin/
+indexer/bin/
+vendor/
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock # ignored at workspace root; library crates commit, binaries don't — decide per package
+
+# TypeScript / Node
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.pnpm-store/
+.npm/
+
+# Python (determinism-harness if Python)
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Determinism harness — large weight files and runtime caches
+determinism-harness/weights/
+determinism-harness/.cache/
+*.gguf
+*.safetensors
+*.bin
+
+# Logs
+*.log
+logs/
+
+# Local devnet data
+.aid/
+.devnet/

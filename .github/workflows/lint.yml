@@ -1,0 +1,54 @@
+name: lint
+
+# Fast-feedback lane: gofmt + go vet + golangci-lint on every Go package.
+# Each package has its own go.mod, so we matrix over them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go-lint:
+    name: lint (${{ matrix.pkg }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: [chain, inference-node, indexer, determinism-harness]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.5'
+          cache: true
+          cache-dependency-path: ${{ matrix.pkg }}/go.sum
+
+      - name: go vet
+        working-directory: ${{ matrix.pkg }}
+        run: go vet ./...
+
+      - name: gofmt (no diff allowed)
+        working-directory: ${{ matrix.pkg }}
+        run: |
+          diff=$(gofmt -l .)
+          if [ -n "$diff" ]; then
+            echo "gofmt -l found unformatted files:" >&2
+            echo "$diff" >&2
+            echo "Run: gofmt -w $diff" >&2
+            exit 1
+          fi
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.59
+          working-directory: ${{ matrix.pkg }}
+          # Keep config defaults until the project commits to a specific
+          # linter set in .golangci.yml — running with vendored defaults
+          # catches the common-case issues without bikeshedding.
+          args: --timeout=5m

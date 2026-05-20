@@ -1,0 +1,106 @@
+syntax = "proto3";
+package aios.aiservice.v1;
+
+import "amino/amino.proto";
+import "cosmos_proto/cosmos.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/aios/aios/x/aiservice/types";
+
+// Service is a registered AI service on the marketplace.
+// The provider account owns the service and receives payments.
+message Service {
+  uint64 id = 1;
+  string owner = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string name = 3;
+  string description = 4;
+  cosmos.base.v1beta1.Coin price = 5 [(gogoproto.nullable) = false];
+  // verification_domain_id references a registered (model, runtime, precision, hardware) tuple.
+  // Phase 0.5: this is 0 (unverified) for all services. Phase 1+: must reference a qualified domain.
+  uint64 verification_domain_id = 6;
+  // active services accept new requests. Owners can deactivate via UpdateService (post-Phase 0.5).
+  bool active = 7;
+  int64 created_at_height = 8;
+}
+
+// RequestStatus represents the lifecycle of an inference request.
+enum RequestStatus {
+  REQUEST_STATUS_UNSPECIFIED = 0;
+  REQUEST_STATUS_PENDING = 1;       // escrowed, waiting for provider
+  REQUEST_STATUS_SUBMITTED = 2;     // provider submitted a result, in challenge window
+  REQUEST_STATUS_FINALIZED = 3;     // challenge window closed, escrow released
+  REQUEST_STATUS_DISPUTED = 4;      // (Phase 3+) under dispute
+  REQUEST_STATUS_REFUNDED = 5;      // deadline elapsed without submission, requester refunded
+}
+
+// InferenceRequest is the on-chain record of an inference job.
+// All values are deterministically derived from the request tx.
+message InferenceRequest {
+  uint64 id = 1;
+  uint64 service_id = 2;
+  string requester = 3 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // input_hash is SHA-256 of the input payload, in lowercase hex.
+  string input_hash = 4;
+  // input_uri points to where the input bytes can be fetched (off-chain CAS).
+  string input_uri = 5;
+  cosmos.base.v1beta1.Coin escrow = 6 [(gogoproto.nullable) = false];
+  int64 deadline_height = 7;
+  RequestStatus status = 8;
+  int64 created_at_height = 9;
+  int64 finalized_at_height = 10;
+  // result is set when status >= SUBMITTED.
+  Result result = 11;
+}
+
+// Result is the provider's response to an InferenceRequest.
+message Result {
+  string output_hash = 1;
+  string output_uri = 2;
+  Attestation attestation = 3 [(gogoproto.nullable) = false];
+}
+
+// Attestation is the signed claim about how an inference was produced.
+// Phase 0.5: signature only, runtime fields are best-effort.
+// Phase 1+: full pinning required for verification domain match.
+message Attestation {
+  string provider = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // model_sha256 is the lowercase hex SHA-256 of the model weights file.
+  string model_sha256 = 2;
+  // runtime_id references a registered runtime in the verification_domain registry.
+  // Phase 0.5: may be 0 (unverified).
+  uint32 runtime_id = 3;
+  uint32 precision = 4;       // see Precision enum
+  uint32 hardware_tag = 5;    // references registered hw class
+  string input_hash = 6;
+  string output_hash = 7;
+  int64 produced_at_height = 8;
+  // signature is over the canonical encoding of the above fields plus the requester+request_id.
+  bytes signature = 9;
+}
+
+// Precision is the numeric format used during inference. Different precisions
+// constitute different verification domains.
+enum Precision {
+  PRECISION_UNSPECIFIED = 0;
+  PRECISION_FP32 = 1;
+  PRECISION_BF16 = 2;
+  PRECISION_FP16 = 3;
+  PRECISION_INT8 = 4;
+  PRECISION_Q4_K_M = 5;
+  PRECISION_Q5_K_M = 6;
+}
+
+// Params are module-level governance parameters.
+message Params {
+  option (amino.name) = "aios/x/aiservice/Params";
+  option (gogoproto.equal) = true;
+
+  // challenge_window_blocks is how long after submission a result remains disputable.
+  // Phase 0.5: 0 (immediate finalize). Phase 3+: tuned per economics analysis.
+  int64 challenge_window_blocks = 1;
+  // min_service_price is the minimum coin price a service can charge.
+  cosmos.base.v1beta1.Coin min_service_price = 2 [(gogoproto.nullable) = false];
+  // max_request_deadline_blocks bounds how far in the future a request deadline can be.
+  int64 max_request_deadline_blocks = 3;
+}

@@ -1,0 +1,74 @@
+syntax = "proto3";
+package aios.aiservice.v1;
+
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "aiservice/v1/types.proto";
+
+option go_package = "github.com/aios/aios/x/aiservice/types";
+
+// Query defines the aiservice gRPC query service.
+service Query {
+  // Params returns the current module parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/aios/aiservice/v1/params";
+  }
+
+  // Service returns a single service by id.
+  rpc Service(QueryServiceRequest) returns (QueryServiceResponse) {
+    option (google.api.http).get = "/aios/aiservice/v1/services/{id}";
+  }
+
+  // Services returns a paginated list of services.
+  rpc Services(QueryServicesRequest) returns (QueryServicesResponse) {
+    option (google.api.http).get = "/aios/aiservice/v1/services";
+  }
+
+  // Request returns a single inference request by id.
+  rpc Request(QueryRequestRequest) returns (QueryRequestResponse) {
+    option (google.api.http).get = "/aios/aiservice/v1/requests/{id}";
+  }
+
+  // Requests returns a paginated list of inference requests, optionally filtered.
+  rpc Requests(QueryRequestsRequest) returns (QueryRequestsResponse) {
+    option (google.api.http).get = "/aios/aiservice/v1/requests";
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryServiceRequest {
+  uint64 id = 1;
+}
+message QueryServiceResponse {
+  Service service = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryServicesRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+}
+message QueryServicesResponse {
+  repeated Service services = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+message QueryRequestRequest {
+  uint64 id = 1;
+}
+message QueryRequestResponse {
+  InferenceRequest request = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryRequestsRequest {
+  uint64 service_id = 1;          // 0 = any
+  RequestStatus status = 2;       // UNSPECIFIED = any
+  cosmos.base.query.v1beta1.PageRequest pagination = 3;
+}
+message QueryRequestsResponse {
+  repeated InferenceRequest requests = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}

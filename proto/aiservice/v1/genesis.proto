@@ -1,0 +1,16 @@
+syntax = "proto3";
+package aios.aiservice.v1;
+
+import "gogoproto/gogo.proto";
+import "aiservice/v1/types.proto";
+
+option go_package = "github.com/aios/aios/x/aiservice/types";
+
+// GenesisState is the module's state at genesis.
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false];
+  repeated Service services = 2 [(gogoproto.nullable) = false];
+  repeated InferenceRequest requests = 3 [(gogoproto.nullable) = false];
+  uint64 next_service_id = 4;
+  uint64 next_request_id = 5;
+}

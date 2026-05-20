@@ -1,0 +1,22 @@
+# Per-package builds use specific contexts; this guards anything wide.
+.git
+.github
+.claude
+docs
+**/node_modules
+**/.next
+**/bin
+**/target
+**/dist
+**/build
+**/coverage*
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/__pycache__
+**/.DS_Store
+**/.env
+**/.env.local
+*.log
+*.pem
+*.key

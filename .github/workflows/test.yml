@@ -1,0 +1,37 @@
+name: test
+
+# Fast-feedback lane: unit + integration tests via `go test ./...` per package.
+# These tests run in-process (no Docker), so they finish in under a minute.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go-test:
+    name: test (${{ matrix.pkg }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: [chain, inference-node, indexer, determinism-harness]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.5'
+          cache: true
+          cache-dependency-path: ${{ matrix.pkg }}/go.sum
+
+      - name: go test
+        working-directory: ${{ matrix.pkg }}
+        # -race enabled for everything (no CGO in any package as of Phase 3.z).
+        # -count=1 disables the test cache to ensure we exercise the code on
+        # every CI run, not just on the first one with a given hash.
+        # 10m timeout is generous — current full suite runs in <60s locally.
+        run: go test -race -count=1 -timeout 10m ./...

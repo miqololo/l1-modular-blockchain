@@ -1,0 +1,278 @@
+# docker-compose.yml — aios Phase 0.5 demo stack.
+#
+# `docker compose up -d` boots the whole stack:
+#   1. model-init        — downloads + verifies TinyLlama Q4_K_M (one-time, ~700MB)
+#   2. llama-server      — llama.cpp HTTP API serving the pinned model
+#   3. chain             — aios L1 (Go HTTP+SSE state machine)
+#   4. inference-node    — watches chain events, calls llama-server, submits results
+#   5. indexer           — subscribes to chain SSE, SQLite read model, REST API
+#   6. frontend          — Next.js marketplace UI
+#
+# Open http://localhost:3000 after `docker compose up -d` completes.
+
+services:
+  # ─── one-time: download + verify model ───────────────────────────────────
+  model-init:
+    image: alpine:3.20
+    container_name: aios-model-init
+    volumes:
+      - aios-models:/models
+      - ./docker/init/model-download.sh:/usr/local/bin/model-download.sh:ro
+    environment:
+      MODEL_MIRROR_URL: "${MODEL_MIRROR_URL:-https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf}"
+      MODEL_SHA256: "${MODEL_SHA256:-}"
+      MODEL_DIR: /models
+    command: ["sh", "-c", "apk add --no-cache curl coreutils && /usr/local/bin/model-download.sh"]
+    networks:
+      - aios
+
+  # ─── llama-server — runs the pinned model ────────────────────────────────
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: aios-llama-server
+    restart: unless-stopped
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+    volumes:
+      - aios-models:/models:ro
+    command:
+      - --model
+      - /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --threads
+      - "4"
+      - --ctx-size
+      - "2048"
+    ports:
+      - "${LLAMA_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    networks:
+      - aios
+
+  # ─── llama-server-b — second instance for cross-process determinism ────
+  # Identical configuration to llama-server but on a different port + container.
+  # The /determinism-check Make target hits both and compares outputs.
+  # Same-machine isolation; doesn't prove TRUE cross-machine determinism (would
+  # need a second host) but does prove the runtime is stable across processes.
+  llama-server-b:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: aios-llama-server-b
+    restart: unless-stopped
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+    volumes:
+      - aios-models:/models:ro
+    command:
+      - --model
+      - /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --threads
+      - "4"
+      - --ctx-size
+      - "2048"
+    ports:
+      - "${LLAMA_PORT_B:-8082}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    networks:
+      - aios
+
+  # ─── chain — aios L1 ─────────────────────────────────────────────────────
+  chain:
+    build:
+      context: ./chain
+      dockerfile: Dockerfile
+    image: aios/chain:dev
+    container_name: aios-chain
+    restart: unless-stopped
+    environment:
+      AID_HOME: /home/aios/.aid
+      LOG_LEVEL: info
+      # Phase 1: the demo seed endpoint uses this to register the default
+      # verification domain. Must match what inference-node computes from the
+      # mounted model file (or its MODEL_SHA256 override).
+      MODEL_SHA256: "${MODEL_SHA256:-}"
+    volumes:
+      - aios-chain:/home/aios/.aid
+    ports:
+      - "${CHAIN_PORT:-26657}:26657"
+    networks:
+      - aios
+
+  # ─── inference-node ──────────────────────────────────────────────────────
+  inference-node:
+    build:
+      context: ./inference-node
+      dockerfile: Dockerfile
+    image: aios/inference-node:dev
+    container_name: aios-inference-node
+    restart: unless-stopped
+    depends_on:
+      chain:
+        condition: service_healthy
+      llama-server:
+        condition: service_healthy
+    environment:
+      CHAIN_URL: http://chain:26657
+      LLAMA_SERVER_URL: http://llama-server:8080
+      HARDWARE_TAG: cpu-x86_64-tinyllama-q4
+      LOG_LEVEL: info
+      PROVIDER_KEY: bob
+      KEYRING_PATH: /keys/keys.json
+      # Phase 1: model SHA computed at startup from /models mount.
+      MODEL_PATH: /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+      PRECISION: q4_k_m
+      RUNTIME_ID: llama.cpp-server
+      # Phase 1: tokenizer pinning. Matches what /demo/seed registers on the
+      # domain — chain rejects MsgSubmitResult attestations with a different
+      # TokenizerID once the domain pins one. Empty here = legacy domain
+      # (no tokenizer pin); set to a stable identifier for production.
+      TOKENIZER_ID: llama.cpp-bpe-v1
+      # Phase 3 demo flag. Set to "1" via `make demo-malicious` to make the
+      # provider submit fabricated output; the harness will detect divergence
+      # and file MsgChallenge. Default off — leave empty/unset for honest path.
+      MALICIOUS_PROVIDER: "${MALICIOUS_PROVIDER:-}"
+    volumes:
+      - aios-chain:/keys:ro
+      # Phase 1: read the pinned model to compute its SHA-256.
+      - aios-models:/models:ro
+    networks:
+      - aios
+
+  # ─── determinism-harness (Phase 1) ──────────────────────────────────────
+  # Watches RequestFinalized events, independently re-runs each inference via
+  # the same llama-server, and reports whether the provider's output_hash
+  # matches the harness re-run. This is the Phase 3 challenger role
+  # rehearsed without slashing.
+  determinism-harness:
+    build:
+      context: ./determinism-harness
+      dockerfile: Dockerfile
+    image: aios/determinism-harness:dev
+    container_name: aios-determinism-harness
+    restart: unless-stopped
+    depends_on:
+      chain:
+        condition: service_healthy
+      llama-server:
+        condition: service_healthy
+    environment:
+      CHAIN_URL: http://chain:26657
+      LLAMA_SERVER_URL: http://llama-server:8080
+      LISTEN: ":8090"
+      LOG_LEVEL: info
+      # Phase 3: harness loads its own key to file MsgChallenge on DIVERGENT.
+      KEYRING_PATH: /keys/keys.json
+      HARNESS_KEY: harness
+    volumes:
+      - aios-chain:/keys:ro
+    ports:
+      - "${HARNESS_PORT:-8090}:8090"
+    networks:
+      - aios
+
+  # ─── determinism-harness-b (MVP item #2: second independent watcher) ────
+  # Architecturally identical to determinism-harness but with a separate
+  # chain key (harness-b) and a separate llama-server backend (llama-server-b).
+  # Together they constitute a credible "two independent watchers per domain"
+  # configuration — required to safely raise per-domain VoucherMargin above 0
+  # and to demonstrate the sybil-resistant voucher quorum game without theatre.
+  determinism-harness-b:
+    build:
+      context: ./determinism-harness
+      dockerfile: Dockerfile
+    image: aios/determinism-harness:dev
+    container_name: aios-determinism-harness-b
+    restart: unless-stopped
+    depends_on:
+      chain:
+        condition: service_healthy
+      llama-server-b:
+        condition: service_healthy
+    environment:
+      CHAIN_URL: http://chain:26657
+      # Point at the SECOND llama-server instance so the harness is genuinely
+      # independent at the runtime layer too, not just at the key layer.
+      LLAMA_SERVER_URL: http://llama-server-b:8080
+      LISTEN: ":8091"
+      LOG_LEVEL: info
+      KEYRING_PATH: /keys/keys.json
+      HARNESS_KEY: harness-b
+    volumes:
+      - aios-chain:/keys:ro
+    ports:
+      - "${HARNESS_PORT_B:-8091}:8091"
+    networks:
+      - aios
+
+  # ─── indexer ─────────────────────────────────────────────────────────────
+  indexer:
+    build:
+      context: ./indexer
+      dockerfile: Dockerfile
+    image: aios/indexer:dev
+    container_name: aios-indexer
+    restart: unless-stopped
+    depends_on:
+      chain:
+        condition: service_healthy
+    environment:
+      CHAIN_URL: http://chain:26657
+      DB_PATH: /data/indexer.db
+      LISTEN: ":8081"
+      LOG_LEVEL: info
+    volumes:
+      - aios-indexer:/data
+    ports:
+      - "${INDEXER_PORT:-8081}:8081"
+    networks:
+      - aios
+
+  # ─── frontend ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: aios/frontend:dev
+    container_name: aios-frontend
+    restart: unless-stopped
+    depends_on:
+      indexer:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_INDEXER_URL: http://localhost:8081
+      NEXT_PUBLIC_CHAIN_URL: http://localhost:26657
+      EXPOSE_DEV_KEYRING: "1"
+      AIOS_KEYRING_PATH: /keys/keys.json
+    volumes:
+      - aios-chain:/keys:ro
+    ports:
+      - "${FRONTEND_PORT:-3030}:3000"
+    networks:
+      - aios
+
+volumes:
+  aios-models:
+  aios-chain:
+  aios-indexer:
+
+networks:
+  aios:
+    driver: bridge
