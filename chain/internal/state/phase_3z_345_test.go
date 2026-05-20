@@ -290,6 +290,10 @@ func TestTreasury_SlashForfeitsProviderSideVoucherBondToTreasury(t *testing.T) {
 	require.Equal(t, preTreasury+25, postTreasury,
 		"provider-side voucher's bond (25) should be swept to treasury on slash")
 }
+
+// ── Immediate-finalize bond fix (ChallengeWindowBlocks=0 path) ──────────────
+
+func TestImmediateFinalize_ReturnsProviderBond(t *testing.T) {
 	// Set ChallengeWindowBlocks=0 to exercise the immediate-finalize path
 	// where the pre-existing bug would leak the provider bond into escrow.
 	s := newStateWithBond(t, 0, 0) // no service bond, to isolate provider bond accounting
