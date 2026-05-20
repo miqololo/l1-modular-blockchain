@@ -61,7 +61,7 @@ The system is six containers. Five do work; one is a one-shot model fetcher.
 
 **What it is**: `llama.cpp`'s HTTP server, run as a sidecar. Loads a pinned model (TinyLlama-1.1B-Chat-Q4_K_M in Phase 0.5) and serves a `/completion` API.
 
-**Why a sidecar (vs embedded in inference-node)**: keeps the Go binary pure-Go, makes the runtime swappable by changing one container, and gives us a stable image SHA for verification domains. See `.claude/internal/adr/0003-runtime-and-verification-domains.md` for the full rationale.
+**Why a sidecar (vs embedded in inference-node)**: keeps the Go binary pure-Go, makes the runtime swappable by changing one container, and gives us a stable image SHA for verification domains.
 
 **Pluggable**: Phase 1+ will support vLLM and candle as alternative runtimes. The HTTP API is what couples them — same `/completion` shape works across runtimes.
 
