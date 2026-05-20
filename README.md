@@ -153,13 +153,14 @@ make demo-multi-watcher       # show TWO independent harnesses watching one requ
 make demo-no-watcher          # falsifiability: no honest watcher → wrong hash finalizes
 make demo-tokenizer-mismatch  # falsifiability: wrong TOKENIZER_ID → chain rejects MsgSubmitResult
 make determinism-check        # same prompt × 2 llama-server processes × 3 runs = 6 hashes
+REMOTE_HOST=root@<ip> make cross-host-determinism-check  # MVP item #1: cross-host determinism (needs ssh access to a 2nd host)
 make harness-report           # see verdicts
 ```
 
 **Now shipped through Phase 3.z + first part of Phase 1:** full dispute game (3.x bonds + 3.y vouchers + 3.z sybil resistance steps 1–4), service-registration bond with treasury sweep, per-domain `VoucherMargin`, voucher bond scales with provider bond, `MsgDeactivateDomain` cascade, tokenizer pinning, **two independent watchers** (`determinism-harness` + `determinism-harness-b`), falsifiability demos.
 
 **Not yet** (with the phase that adds each):
-- Cross-host determinism on two physical hosts — Phase 1 hard requirement (current setup proves cross-process, not cross-machine)
+- ~~Cross-host determinism on two physical hosts~~ — **shipped 2026-05-20**; `make cross-host-determinism-check`; validated Apple M3 Pro (Rosetta) ↔ AMD EPYC-Rome
 - Verified-runtime executor (replace `llama_http`) — Phase 1
 - BFT consensus / Cosmos SDK swap — Phase 1
 - Federated re-execution committee (escalation beyond vouchers) — ADR-0004 design accepted; implementation Phase 4

@@ -1,0 +1,21 @@
+# docker-compose.remote.yml — slimmed override for resource-constrained
+# remote hosts (~4 GB RAM). Use with the base compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.remote.yml up -d --build
+#
+# Differences from the laptop default:
+#   1. llama-server-b and determinism-harness-b are disabled (not needed for
+#      the marketplace demo; the cross-host determinism check is a separate
+#      operation handled by scripts/cross-host-determinism-check.sh).
+#   2. Frontend env vars (NEXT_PUBLIC_INDEXER_URL, NEXT_PUBLIC_CHAIN_URL) are
+#      driven from the .env file's PUBLIC_HOST so a browser on another machine
+#      can talk to the chain/indexer over the public IP.
+
+services:
+  # Disable second llama-server — saves ~1.2 GB of resident memory.
+  llama-server-b:
+    profiles: ["disabled"]
+
+  # Disable second harness — pairs with llama-server-b.
+  determinism-harness-b:
+    profiles: ["disabled"]

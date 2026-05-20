@@ -74,10 +74,15 @@ type Attestation struct {
 	RuntimeID            string `json:"runtime_id"`
 	HardwareTag          string `json:"hardware_tag"`
 	Precision            string `json:"precision"`
-	InputHash            string `json:"input_hash"`
-	OutputHash           string `json:"output_hash"`
-	ProducedAt           int64  `json:"produced_at_height"`
-	SignatureHex         string `json:"signature_hex"`
+	// Phase 1: tokenizer pinning. MUST stay in this exact position to keep
+	// canonical JSON bytes aligned with chain/internal/types/types.go. Empty
+	// = "domain doesn't pin a tokenizer" (legacy). omitempty makes legacy
+	// attestations byte-identical pre- and post-Phase-1.
+	TokenizerID  string `json:"tokenizer_id,omitempty"`
+	InputHash    string `json:"input_hash"`
+	OutputHash   string `json:"output_hash"`
+	ProducedAt   int64  `json:"produced_at_height"`
+	SignatureHex string `json:"signature_hex"`
 }
 
 type Status struct {

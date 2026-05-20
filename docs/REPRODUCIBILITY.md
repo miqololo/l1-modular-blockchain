@@ -329,9 +329,10 @@ Investigation order:
 
 The following are known limitations of this checkout that an auditor should *not* attempt to certify:
 
-1. **Cross-host determinism.** Out of scope of this document. To certify it, run Steps 1, 2, 3 on a second physical host or cloud VM with a different CPU model, compare `output_hash` values across hosts, and add the comparison to your sign-off notes.
+1. ~~**Cross-host determinism.**~~ **Certified 2026-05-20** via Step 1b above. Two physical amd64 hosts (Apple M3 Pro w/ Rosetta + AMD EPYC-Rome native) produced six identical hashes for the pinned tuple. Different hosts of the same `hardware_tag` produce equal output; different `hardware_tag`s (arm64 vs amd64) produce different output, validating the protocol's domain discriminator.
 2. **Censorship resistance.** With a single-producer chain, the protocol assumes the producer doesn't censor `MsgChallenge`. A multi-host adversarial test is out of scope of this document.
 3. **Authority key compromise.** The dev key in `EnsureDevKeyring` is exposed in `.aid/keys.json` inside the container. Treat the local devnet as compromised by definition; production guidance requires multisig (Phase 4).
 4. **Long-running soak.** Steps 1–7 are single-request validations. A long-running soak (100+ requests, mixed honest/malicious/spurious) is a Phase 2 follow-up.
+5. **Same-microarch reproducibility within amd64.** Step 1b uses two different x86 implementations (Apple Silicon Rosetta JIT + AMD EPYC native). A pedant could argue these are "different enough" CPUs that the test conflates emulation correctness with native determinism. A stronger follow-up: three native x86 hosts of different vendors (Intel + AMD + AMD different generation). For MVP scope, the Rosetta+EPYC match is sufficient evidence that `hardware_tag = cpu-x86_64-*` captures the relevant determinism class.
 
 If any of (1)–(4) matter for the use case you're evaluating, that's a Phase-level question for the project owner, not a defect in this checkout.

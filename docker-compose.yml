@@ -257,8 +257,11 @@ services:
       indexer:
         condition: service_healthy
     environment:
-      NEXT_PUBLIC_INDEXER_URL: http://localhost:8081
-      NEXT_PUBLIC_CHAIN_URL: http://localhost:26657
+      # Default to localhost so the make-demo flow works without env tweaks.
+      # Override via .env or a compose override file when deploying to a host
+      # where browsers will reach the chain/indexer over a non-localhost address.
+      NEXT_PUBLIC_INDEXER_URL: "${NEXT_PUBLIC_INDEXER_URL:-http://localhost:8081}"
+      NEXT_PUBLIC_CHAIN_URL: "${NEXT_PUBLIC_CHAIN_URL:-http://localhost:26657}"
       EXPOSE_DEV_KEYRING: "1"
       AIOS_KEYRING_PATH: /keys/keys.json
     volumes:
