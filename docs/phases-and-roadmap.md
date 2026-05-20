@@ -41,7 +41,7 @@ What's in Phase 0.5 (now), and what each later phase adds. Public version of the
 **Additive:**
 - Keplr / Leap browser wallet integration. The bundled frontend updates to use these instead of the in-browser demo wallet.
 - Deterministic-runtime inference: pinned model hash, pinned runtime version, pinned hardware tag. Verification domain registry on-chain.
-- Attestation v1: full typed payload (CBOR-encoded), proper Ed25519 signing per `.claude/internal/protocol/verification-protocol.md`.
+- Attestation v1: full typed payload (CBOR-encoded), proper Ed25519 signing.
 
 **Migration path:** the message shapes (`MsgRegisterService`, `MsgRequestInference`, `MsgSubmitResult`) and event names carry over. The transport layer changes. Plan to update your client's HTTP calls; the application logic stays.
 
@@ -140,15 +140,6 @@ Each phase release will include:
 - A `MIGRATION.md` listing breaking changes and the path from the previous phase
 - A migration script (where applicable) for indexer / database schemas
 - A bridge period where both old and new endpoints work simultaneously (where feasible)
-
-## How decisions get made
-
-Internal-only, but for transparency:
-- Major architecture choices: ADRs in `.claude/internal/adr/`. Each one records the decision and the tradeoffs.
-- Phase contents: `.claude/internal/PHASE.md` is the working tracker; this doc is the public summary.
-- Protocol design: `.claude/internal/protocol/verification-protocol.md` is the load-bearing spec.
-
-You don't need to read these to integrate. They're available if you want to understand the "why."
 
 ## Next
 

@@ -4,7 +4,9 @@
 // events for services owned by THIS node's provider account, calls llama-server,
 // signs an attestation, and broadcasts MsgSubmitResult to /tx.
 //
-// PHASE 0.5: real inference, NOT verifiable. See inference-node/CLAUDE.md.
+// PHASE 0.5: real inference, NOT verifiable yet.
+// Determinism + cross-host attestation arrive in Phase 1; fraud-proof
+// challenges arrive in Phase 3. See docs/phases-and-roadmap.md.
 package main
 
 import (
@@ -48,7 +50,7 @@ func main() {
 	}
 	defer func() { _ = logger.Sync() }()
 
-	logger.Warn("PHASE 0.5: real inference, UNVERIFIED — see inference-node/CLAUDE.md")
+	logger.Warn("PHASE 0.5: real inference, UNVERIFIED — verifiability arrives in Phase 1+3")
 
 	// Wait for the keyring to exist (chain may still be initializing).
 	if err := waitFor(*keyringPath, 60*time.Second, logger); err != nil {

@@ -240,14 +240,15 @@ function inlineMD(s: string): string {
 //   `signing.md` → `/docs/signing`
 //   `./signing.md` → `/docs/signing`
 //   `../README.md` → `/docs/README`
-//   `.claude/internal/PHASE.md` → external (we don't ship internal docs in the UI)
+// Links into folders that aren't shipped in the container (e.g. an internal
+// development workspace) become harmless in-page anchors.
 function rewriteRelativeLink(url: string): string {
   // Strip leading ./ or ../
-  let u = url.replace(/^\.\//, "").replace(/^\.\.\//, "");
-  // Internal-only docs aren't in the container; leave them as the GitHub-style
-  // path so the user sees what file it refers to (404 is acceptable as it's
-  // explicitly an internal reference).
-  if (u.startsWith(".claude/")) return `#${u}`;
+  const u = url.replace(/^\.\//, "").replace(/^\.\.\//, "");
+  // Dot-prefixed paths point at folders not present in the container build;
+  // turn them into anchor links so they don't 404 — the original path is
+  // visible in the href for traceability.
+  if (u.startsWith(".")) return `#${u}`;
   // Same-folder .md → /docs/slug
   const m = u.match(/^([A-Za-z0-9._-]+)\.md(#.*)?$/);
   if (m) return `/docs/${m[1]}${m[2] || ""}`;

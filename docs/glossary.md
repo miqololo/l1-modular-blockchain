@@ -82,7 +82,7 @@ Quick reference for terminology used across the docs.
 
 **Worker** — synonym for inference node.
 
-**zkML** — zero-knowledge proofs of machine learning inference. Heavyweight alternative to optimistic verification. The aios protocol can support zkML for high-value services but isn't built on it — see `.claude/internal/adr/0002-optimistic-verification.md` for the design rationale.
+**zkML** — zero-knowledge proofs of machine learning inference. Heavyweight alternative to optimistic verification. The aios protocol can support zkML for high-value services but isn't built on it.
 
 ## Next
 

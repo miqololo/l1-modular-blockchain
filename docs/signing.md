@@ -207,7 +207,7 @@ const signed = { ...att, signature_hex: bytesToHex(sig) };
 
 Domain pinning: the chain re-verifies `(model_sha256, runtime_id, hardware_tag, precision)` against the registered domain on every submission. A mismatch returns `attestation does not match service's verification domain`.
 
-> Phase 1 uses ordered-JSON canonicalization. Phase 2+ may switch to typed CBOR per `.claude/internal/protocol/verification-protocol.md` §5; the schema is forward-compatible.
+> Phase 1 uses ordered-JSON canonicalization. Phase 2+ may switch to typed CBOR; the schema is forward-compatible.
 
 ## Common pitfalls
 

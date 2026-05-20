@@ -20,8 +20,9 @@ credentials*
 *.secret
 
 # Local-only dev workspace (development tooling config, internal notes,
-# scratch agents). Never pushed to remote git.
+# per-package developer rules). Never pushed to remote git.
 .claude/
+**/CLAUDE.md
 
 # Go
 chain/bin/

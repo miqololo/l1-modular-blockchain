@@ -267,7 +267,7 @@ Cascades through dependent state. In a single transaction the chain emits:
 2. One `ServiceDeactivated` event per service bound to the domain — registration bonds are refunded in full, **overriding `MinServiceLifetimeBlocks`** because the chain is killing the service, not the operator.
 3. One `RequestVoided` event per open request (PENDING / SUBMITTED / CHALLENGED) on those services — every locked party gets their stake back (escrow + provider bond + challenger bond + voucher bonds).
 
-Terminal-status requests (FINALIZED, SLASHED, REFUNDED) are untouched. See [`verification-protocol.md` §7.5](../.claude/internal/protocol/verification-protocol.md) for the design rationale.
+Terminal-status requests (FINALIZED, SLASHED, REFUNDED) are untouched.
 
 For `resolve_challenge` (Phase 3.x+, authority-only):
 ```json
